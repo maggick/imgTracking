@@ -23,11 +23,7 @@
 #include <highgui.h>
 #endif
 
-// TODO, clean the code
-
 using namespace std;
-
-
 
 /**
  * convert hsv2rgb
