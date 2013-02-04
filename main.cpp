@@ -2,23 +2,25 @@
  * File:   main.cpp
  * Author: Matthieu Keller <keller.mdpa@gmail.com>
  *
- *  copyright : Creative Commons : Attribution-NonCommercial-ShareAlike 3.0 Unported (CC BY-NC-SA 3.0) 
+ *  copyright : Creative Commons :  CC BY-NC-SA 3.0 
+ *          Attribution-NonCommercial-ShareAlike 3.0 Unported 
  * http://creativecommons.org/licenses/by-nc-sa/3.0/
  *
  * Created on March 31, 2011, 4:14 PM
  *
- * This programme track a colored object by passing his picture in argument.
+ * This programme track a colored object by passing his picture in argument
  */
 
 // to build an opencv file use (compiler options) :
 // -lcv -lhighgui
 
-#include "main.h"
+#include "main.hpp"
 
 // Webcam input
 IplImage* pictIn;
 
-IplImage *image = 0, *hsv = 0, *hue = 0, *mask = 0, *backproject = 0, *histimg = 0;
+IplImage *image = 0, *hsv = 0, *hue = 0, *mask = 0, 
+        *backproject = 0, *histimg = 0;
 CvHistogram *hist = 0;
 
 int backproject_mode = 0;
@@ -32,6 +34,8 @@ int hdims = 16;
 float hranges_arr[] = {0, 180};
 float* hranges = hranges_arr;
 int vmin = 10, vmax = 256, smin = 30;
+// in order to record
+CvVideoWriter* videoWriter; 
 
 /**
  * convert hsv2rgb
@@ -62,9 +66,27 @@ CvScalar hsv2rgb(float hue) {
     return cvScalar(rgb[2], rgb[1], rgb[0], 0);
 }
 
+
+
+void drawArrow(IplImage *image, CvPoint p, CvPoint q, 
+               CvScalar color, int arrowMagnitude = 9,
+               int thickness=1, int line_type=8, int shift=0) {
+    //draw the principle line 
+    cvLine(image, p, q, color, thickness, line_type, shift);
+    // calcul the alpha angle
+    double angle = atan2((double)p.y-q.y, (double)p.x-q.x);
+    p.x = (int) ( q.x +  arrowMagnitude * cos(angle + PI/4));
+    p.y = (int) ( q.y +  arrowMagnitude * sin(angle + PI/4));
+    cvLine(image, p, q, color, thickness, line_type, shift);
+    p.x = (int) ( q.x +  arrowMagnitude * cos(angle - PI/4));
+    p.y = (int) ( q.y +  arrowMagnitude * sin(angle - PI/4));
+    cvLine(image, p, q, color, thickness, line_type, shift);
+}
+
 /**
  *
- * @param name the input picture (it has to be in the same folder than the main)
+ * @param name the input picture (it has to be in the same 
+ *                                      folder than the main)
  * @return the histogramme of the input picture
  */
 CvHistogram* calcHist(char* name) {
@@ -104,7 +126,8 @@ CvHistogram* calcHist(char* name) {
     // we create histimg to show the histogramme
     bin_w = histimg->width / hdims;
     for (i = 0; i < hdims; i++) {
-        int val = cvRound(cvGetReal1D(hist->bins, i) * histimg->height / 255);
+        int val = cvRound(cvGetReal1D(hist->bins, i) 
+                          * histimg->height / 255);
         CvScalar color = hsv2rgb(i * 180.f / hdims);
         cvRectangle(histimg, cvPoint(i*bin_w, histimg->height),
                 cvPoint((i + 1) * bin_w, histimg->height - val),
@@ -157,7 +180,8 @@ void tracking(char** argv) {
             cvSetImageROI(mask, selection);
 
             cvGetMinMaxHistValue(hist, 0, &max_val, 0, 0);
-            cvConvertScale(hist->bins, hist->bins, max_val ? 255. / max_val : 0., 0);
+            cvConvertScale(hist->bins, hist->bins, max_val
+                           ? 255. / max_val : 0., 0);
             cvResetImageROI(hue);
             cvResetImageROI(mask);
             track_window = selection;
@@ -200,7 +224,12 @@ void tracking(char** argv) {
         if (!image->origin)
             track_box.angle = -track_box.angle;
 
+        if (track_box.size.width > 0 && track_box.size.height > 0){
         cvEllipseBox(image, track_box, CV_RGB(255, 0, 0));
+        drawArrow(image, cvPoint(image->width/2, image->height),
+                  cvPoint(int(track_box.center.x), int(track_box.center.y)),
+                  CV_RGB(100, 0, 255));
+        }
     }
 }
 
@@ -214,13 +243,15 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    //webcam index
-    int index = -1;
-
-
-
+    // real tracking
+    // webcam index
+//    int index = -1;
     // we read the webcam
-    CvCapture* capture = cvCreateCameraCapture(index);
+//    CvCapture* capture = cvCreateCameraCapture(index);
+
+
+    // video tracking for test
+    CvCapture* capture = cvCreateFileCapture("SAUCE_Test_Vid.wmv");
 
     // we check if it s reading
     if (!capture) {
@@ -236,6 +267,7 @@ int main(int argc, char** argv) {
     // creation of the windows
     cvNamedWindow("Histogram", 1);
     cvNamedWindow("input", 1);
+    cvNamedWindow("backproject", 1);
 
 
     // we cath a frame
@@ -243,6 +275,12 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Could not capturing the frame ...\n");
         return EXIT_FAILURE;
     }
+
+    // in order to record
+    pictIn = cvRetrieveFrame(capture);
+//    videoWriter = cvCreateVideoWriter("plop.avi", 
+    //      CV_FOURCC('M','J','P','G'), 25, 
+    //      cvSize(pictIn->width, pictIn->height), 1);
 
     // variable for key
     int c;
@@ -256,12 +294,30 @@ int main(int argc, char** argv) {
         tracking(argv);
 
         // we show pictIn
+        
         cvShowImage("input", image);
         cvShowImage("Histogram", histimg);
+        cvShowImage("backproject", backproject);
+        
+        // in order to record 
+        cvWriteFrame(videoWriter, image);
 
         c = cvWaitKey(10);
+        int d;
+        // in order to make a pause
+        if (c == 32){
+            d = 0;
+            while (d != 32){
+                d = cvWaitKey(10);
+                if (d == 27){
+                    c = 27;
+                    break;
+                }
+            }
+        } 
         if (c == 27)
             break;
+
         switch (c) {
             case 'b':
                 backproject_mode ^= 1;
@@ -285,7 +341,7 @@ int main(int argc, char** argv) {
 
     // the pictures
     pictIn = NULL;
-    image = NULL;
+	image = NULL;
 
     // we release
     cvReleaseCapture(&capture);

@@ -17,9 +17,9 @@ RM=rm
 
 # Creat the imgTracking exe
 all: main.o 
-	$(CXX) $^ -lcv -lhighgui -o imgTracking
+	$(CXX) $^  `pkg-config opencv --cflags --libs` -lcv -lhighgui -o imgTracking
  
-main.o: main.cpp
+main.o: main.cpp main.hpp
 	$(CXX) $< $(CXXFLAGS) -o $@
  
 # suppression des fichiers temporaires
