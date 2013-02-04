@@ -4,3 +4,7 @@
 *.jpg
 *.avi
 *.PNG
+*.wmv
+*.o
+*.old
+movie/*
